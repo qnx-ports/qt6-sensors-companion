@@ -1,0 +1,76 @@
+# Alpine-Maintainer: Bart Ribbers <bribbers@disroot.org>
+# Maintainer: Felix Xing <fxing@qnx.com>
+pkgname=qt6-sensors
+pkgver=6.10.0
+pkgrel=0
+pkgdesc="Provides access to sensor hardware and motion gesture recognition"
+url="https://qt.io/"
+arch="all"
+license="LGPL-2.1-only AND LGPL-3.0-only AND GPL-3.0-only AND Qt-GPL-exception-1.0"
+depends="
+    libc++
+    qt6-base
+    qt6-declarative
+    qnx-io-sock
+    "
+depends_dev="
+    qt6-base-dev
+    qt6-base-private-dev
+    qt6-declarative-dev
+    qt6-declarative-private-dev
+    qt6-svg-dev
+    "
+makedepends="$depends_dev
+    cmake
+    perl
+    ninja
+    "
+subpackages="$pkgname-dev"
+source="https://download.qt.io/official_releases/qt/${pkgver%.*}/${pkgver/_/-}/submodules/qtsensors-everywhere-src-${pkgver/_/-}.tar.xz"
+options="!check" # No tests found
+builddir="$srcdir/qtsensors-everywhere-src-${pkgver/_/-}"
+
+build() {
+     # It's qcc here, but compiled with clang on the selfhosted system
+    if [[ $CARCH == "x86_64" ]]; then
+        _triplet="qnx-x86-64-qcc"
+    elif [[ $CARCH == "aarch64" ]]; then
+        _triplet="qnx-aarch64le-qcc"
+    else
+        die "$CARCH not supported"
+    fi
+
+    _warn="-Wno-character-conversion"
+
+    export CC=clang
+    export CXX=clang++
+    export CFLAGS="$_warn"
+    export CXXFLAGS="$_warn"
+    export LDFLAGS="-lsocket"
+    export LD_LIBRARY_PATH="$builddir/build/lib:$LD_LIBRARY_PATH"
+
+    cmake -B build -G Ninja \
+        -DCMAKE_SKIP_RPATH=ON \
+        -DQT_QMAKE_TARGET_MKSPEC=$_triplet \
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF \
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_MESSAGE_LOG_LEVEL=STATUS \
+        -DFEATURE_pkg_config=ON
+
+    cmake --build build --parallel
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}
+
+dev() {
+    default_dev
+
+    amove usr/lib/qt6/sbom
+}
+
+sha512sums="
+536c646f5612c3170527ebcf96df957891a50e155f485f8b5f47605e80a3ac0dbba383643879bb25e533a4d7117837bd02705637510ff1bc14c4149c078b9374  qtsensors-everywhere-src-6.10.0.tar.xz
+"
